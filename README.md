@@ -20,19 +20,29 @@ Open `index.html` directly, or serve the folder with any static web server.
 
 The flashcards are stored as a snapshot in the `cards` array inside `index.html`. The source is the [Sales Snippets Notion database](https://app.notion.com/p/louisdemaso/eea9f5e7820f4cfe917b8b236bf596d2?v=9f3102a6cdff4494846e9947f3c7f6c9).
 
+**Last successful Notion sync:** `2026-09-13T20:36:37.510Z` (UTC)
+
+<!-- notion-sync-timestamp: 2026-09-13T20:36:37.510Z -->
+
 ### Instructions for an authenticated agent
 
 When an agent is connected to Louis DeMaso's Notion workspace and asked to refresh the flashcards:
 
-1. Fetch the Sales Snippets database from the source link above and identify its underlying data source.
-2. Query all non-archived rows. Follow pagination until no additional rows remain.
-3. Read these properties from every row:
+1. Read the ISO-8601 timestamp from the `notion-sync-timestamp` comment above. Treat it as the exclusive lower bound for changed records.
+2. Record a new UTC `syncStartedAt` timestamp **before** querying Notion. Do not write this new timestamp to the README yet.
+3. Fetch the Sales Snippets database from the source link above and verify that its data source still contains `Name`, `Response`, `Type`, and `Last Modified`. `Last Modified` must be a Notion `last_edited_time` property.
+4. Compare each non-archived row's `Last Modified` value with the saved timestamp. Only a row with `Last Modified > saved timestamp` needs its card content reprocessed.
+   - A lightweight metadata query can first retrieve `url`, `createdTime`, `Name`, and `Last Modified`.
+   - Fetch faithful rich-text values for `Response` only for changed rows.
+   - Follow pagination until all matching rows have been considered.
+5. Reconcile the lightweight current-row list against the existing card names and count. If a row was deleted or archived, or an existing row's `Name` changed so it cannot be matched safely, fall back to a full rebuild of the array. This prevents stale or duplicate cards.
+6. For each changed row, map the properties as follows:
    - `Name` → `name`
    - `Response` → `response`
    - `Type` → `type`
-4. Preserve the wording and punctuation from Notion exactly. Convert Notion line-break markup such as `<br>` to newline characters for display, but do not rewrite or summarize the content.
-5. Open `index.html` and replace the complete `const cards = [...];` array. Do not alter the surrounding HTML, CSS, or application logic unless separately requested.
-6. Do not include Notion page URLs, internal IDs, timestamps, or other properties in the array. Each object should use only this structure:
+7. Preserve the wording and punctuation from Notion exactly. Convert Notion line-break markup such as `<br>` to newline characters for display, but do not rewrite or summarize the content.
+8. Open `index.html` and update the affected objects inside `const cards = [...];`. For a full rebuild, replace the complete array. Do not alter the surrounding HTML, CSS, or application logic unless separately requested.
+9. Do not include Notion page URLs, internal IDs, timestamps, or other properties in the card array. Each object must use only this structure:
 
    ```js
    {
@@ -42,12 +52,13 @@ When an agent is connected to Louis DeMaso's Notion workspace and asked to refre
    }
    ```
 
-7. Validate the updated file before committing:
-   - Confirm the JavaScript parses successfully.
-   - Confirm the number of objects equals the number of retrieved Notion rows.
-   - Confirm every object has non-empty `name`, `type`, and `response` values.
-   - Confirm the app can show a prompt, flip to its response, and advance to another card.
-8. Commit the updated `index.html` with a concise message such as `Refresh flashcards from Notion`.
+10. Validate before committing:
+    - Confirm the JavaScript parses successfully.
+    - Confirm the card count matches the current number of non-archived Notion rows.
+    - Confirm every object has non-empty `name`, `type`, and `response` values.
+    - Confirm the app can show a prompt, flip to its response, and advance to another card.
+11. After—and only after—the Notion query, any required card update, and validation all succeed, replace both README timestamp occurrences with the recorded `syncStartedAt` value. Using the query-start time instead of the finish time ensures that an edit made during the sync will be reconsidered next time.
+12. Commit the changed files with a concise message such as `Refresh flashcards from Notion`. If no cards changed, commit only the advanced README timestamp. If any step fails, leave the previous timestamp unchanged.
 
 ### Credential safety
 
